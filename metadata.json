@@ -1,0 +1,6 @@
+{
+  "name": "منصة المنهج الذكي",
+  "description": "منصة تعليمية ذكية وشاملة للمراحل الابتدائية والإعدادية والثانوية مع شروحات نصية وصوتية واختبارات تفاعلية ورفع الكتب",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
