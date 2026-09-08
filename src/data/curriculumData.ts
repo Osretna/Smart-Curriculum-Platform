@@ -103,6 +103,135 @@ export const SECONDARY_STREAM_SUBJECTS: Record<SecondaryStreamId, Subject[]> = {
 // Initial Seed Books Database
 export const INITIAL_BOOKS: ExternalBook[] = [
   {
+    id: 'book-p5-connect-plus-moasser',
+    title: 'المعاصر في كونكت بلس 5 (Connect Plus 5) - الصف الخامس الابتدائي',
+    author: 'سلسلة كتب المعاصر بالتعاون مع المتميز',
+    publisher: 'دار المعاصر للغات والنشر',
+    stageId: 'primary',
+    gradeId: 'grade-p5',
+    subjectId: 'english',
+    coverImage: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?auto=format&fit=crop&w=600&q=80',
+    description: 'كتاب خارجي شامل لمادة Connect Plus 5 يتضمن شروحات صوتية للوحدات باللغة الإنجليزية مع الترجمة العربية المباشرة، وحصيلة لغوية، وتدريبات واختبارات تفاعلية.',
+    uploadedAt: '2026-08-22',
+    uploaderName: 'مستر أحمد عبد السلام (معلم أول لغة إنجليزية)',
+    uploaderRole: 'teacher',
+    status: 'approved',
+    viewsCount: 6540,
+    listensCount: 4320,
+    rating: 4.95,
+    fileType: 'pdf',
+    fileSize: '16.8 MB',
+    chapters: [
+      {
+        id: 'ch-p5-eng-1',
+        number: 1,
+        title: 'الوحدة الأولى: اكتشاف العالم من حولي (Discovering the world around me)',
+        summary: 'تناول هذه الوحدة استكشاف الطبيعة، البيئة المحيطة، وتنمية مهارات الملاحظة والوصف باللغة الإنجليزية من خلال مواضيع شائقة.',
+        detailedExplanation: `Welcome to Unit 1: Discovering the World Around Me!
+ترجمة وشرح: مرحباً بكم في الوحدة الأولى: اكتشاف العالم من حولي!
+
+In this unit, we explore nature and how living organisms interact with their environment.
+ترجمة وشرح: في هذه الوحدة، نستكشف معاً الطبيعة وكيف تتفاعل الكائنات الحية مع بيئتها المحيطة.
+
+Living organisms need clean water, healthy food, and fresh air to grow and stay strong.
+ترجمة وشرح: تحتاج الكائنات الحية إلى الماء النظيف والغذاء الصحي والهواء النقي للنمو والبقاء قوية.
+
+Green plants are amazing because they make their own food through photosynthesis.
+ترجمة وشرح: تتميز النباتات الخضراء بقدرتها المدهشة على صنع غذائها بنفسها عبر عملية البناء الضوئي.
+
+Roots absorb water and nutrients from the soil, while leaves catch sunlight to produce energy.
+ترجمة وشرح: تمتص الجذور الماء والمغذيات من التربة، بينما تلتقط الأوراق ضوء الشمس لإنتاج الطاقة.
+
+Grammar Focus: We use the Present Simple tense to talk about daily habits and scientific facts.
+ترجمة وشرح: التركيز النحوي: نستخدم زمن المضارع البسيط للحديث عن العادات اليومية والحقائق العلمية الثابتة.
+
+For singular subjects, we add 's' to the verb: "A healthy plant absorbs sunlight and releases oxygen."
+ترجمة وشرح: مع الفاعل المفرد، نضيف حرف 's' للفعل، مثل: "يمتص النبات السليم ضوء الشمس ويطلق الأكسجين."`,
+        keyPoints: [
+          'Photosynthesis is how green plants make glucose and oxygen.',
+          'الترجمة: البناء الضوئي هو طريقة صنع النبات للسكر والأكسجين.',
+          'Roots absorb water and nutrients from the soil.',
+          'الترجمة: تمتص الجذور الماء والعناصر المغذية من التربة.',
+          'Present Simple is used for permanent scientific truths.',
+          'الترجمة: يُستخدم المضارع البسيط للتعبير عن الحقائق العلمية الثابتة.',
+        ],
+        definitions: [
+          { term: 'Photosynthesis', definition: 'عملية البناء الضوئي لصنع الغذاء والأكسجين باستخدام ضوء الشمس.' },
+          { term: 'Nutrients', definition: 'المغذيات والعناصر الغذائية التي يمتصها النبات من التربة.' },
+          { term: 'Ecosystem', definition: 'النظام البيئي وتفاعل الكائنات الحية مع العناصر الطبيعية المحيطة.' },
+        ],
+        estimatedMinutes: 10,
+        quiz: [
+          {
+            id: 'q-p5-eng-1',
+            question: 'What do green leaves use to absorb energy from sunlight?',
+            options: ['Chlorophyll', 'Pollen', 'Soil nutrients', 'Sand'],
+            correctIndex: 0,
+            explanation: 'Chlorophyll (الكلوروفيل) is the green pigment in leaves that absorbs sunlight energy.',
+          },
+          {
+            id: 'q-p5-eng-2',
+            question: 'Which gas do green plants release into the air after making their food?',
+            options: ['Nitrogen', 'Oxygen', 'Helium', 'Carbon monoxide'],
+            correctIndex: 1,
+            explanation: 'Plants release oxygen (غاز الأكسجين) which humans and animals breathe to live.',
+          },
+          {
+            id: 'q-p5-eng-3',
+            question: 'Complete: A plant ______ water and nutrients from the soil.',
+            options: ['absorbs', 'absorb', 'absorbing', 'absorbed'],
+            correctIndex: 0,
+            explanation: 'Because "A plant" is singular, the verb in present simple takes "s" (absorbs).',
+          },
+        ],
+      },
+      {
+        id: 'ch-p5-eng-2',
+        number: 2,
+        title: 'الوحدة الثانية: التنوع البيولوجي وحيوانات وادي النيل (Ecosystems & Wildlife)',
+        summary: 'التعرف على السلسلة الغذائية والكائنات المنتجة والمستهلكة وتكيف حيوانات النيل والصحراء.',
+        detailedExplanation: `Welcome back! In Unit 2, we learn about ecosystems and food chains in Egypt.
+ترجمة وشرح: أهلاً بكم مجدداً! في الوحدة الثانية، نتعلم عن الأنظمة البيئية والسلاسل الغذائية في مصر.
+
+An ecosystem is a community of living things and non-living elements interacting together.
+ترجمة وشرح: النظام البيئي هو مجتمع متكامل من الكائنات الحية والعناصر غير الحية التي تتفاعل معاً.
+
+A food chain always begins with green plants, which are called producers.
+ترجمة وشرح: تبدأ سلسلة الغذاء دائماً بالنباتات الخضراء، والتي تُسمى بالكائنات المنتجة.
+
+Animals cannot make their own food, so they are called consumers.
+ترجمة وشرح: لا تستطيع الحيوانات صنع غذائها بنفسها، لذلك تُسمى بالكائنات المستهلكة.
+
+Primary consumers eat plants, while secondary consumers hunt smaller animals.
+ترجمة وشرح: تتغذى المستهلكات الأولية على النباتات، بينما تفترس المستهلكات الثانوية حيوانات أصغر.
+
+Decomposers like fungi and bacteria recycle nutrients back into the rich soil.
+ترجمة وشرح: تقوم الكائنات المحللة مثل الفطريات والبكتيريا بإعادة تدوير العناصر الغذائية إلى التربة الخصبة.`,
+        keyPoints: [
+          'Producers make food, while consumers hunt or graze.',
+          'الترجمة: الكائنات المنتجة تصنع الغذاء، بينما المستهلكات تصطاد أو ترعى.',
+          'Decomposers clean the environment by breaking down organic matter.',
+          'الترجمة: المحللات تنظف البيئة بتحليل المواد العضوية وإعادتها للتربة.',
+        ],
+        definitions: [
+          { term: 'Producer', definition: 'كائن منتج يصنع غذاءه بنفسه مثل النباتات.' },
+          { term: 'Consumer', definition: 'كائن مستهلك يعتمد على غيره في التغذية.' },
+          { term: 'Decomposer', definition: 'كائن محلل يعيد تدوير المغذيات في التربة.' },
+        ],
+        estimatedMinutes: 9,
+        quiz: [
+          {
+            id: 'q-p5-eng-4',
+            question: 'What is the role of green plants in a food chain?',
+            options: ['Decomposers', 'Producers', 'Predators', 'Scavengers'],
+            correctIndex: 1,
+            explanation: 'Plants are producers because they produce their own food from sunlight.',
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: 'book-p4-science-adwaa',
     title: 'الأضواء في العلوم - الفصل الدراسي الأول',
     author: 'نخبة من خبراء وموجهي العلوم',

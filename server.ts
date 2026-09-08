@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
+import { generateCurriculumFromFilename } from './src/utils/bookAnalyzer';
 
 const app = express();
 const PORT = 3000;
@@ -40,6 +41,34 @@ function buildContextualExplanation(
   subject?: string,
   currentExplanation?: string
 ): string {
+  const isForeign =
+    subject === 'english' ||
+    subject === 'french' ||
+    (bookTitle &&
+      (bookTitle.toLowerCase().includes('connect') ||
+        bookTitle.toLowerCase().includes('english') ||
+        bookTitle.toLowerCase().includes('إنجليزي') ||
+        bookTitle.toLowerCase().includes('فرنسي')));
+
+  if (isForeign) {
+    return `💡 **Bilingual Explanation (شرح تعليمي ثنائي حول: ${question})**
+
+In this lesson "${chapterTitle || 'Current Unit'}", we focus on clear language and core concepts.
+ترجمة وشرح: في هذا الدرس "${chapterTitle || 'الوحدة الحالية'}" من كتاب "${bookTitle || 'المنهج المقرر'}"، نركز على استيعاب اللغة والمفاهيم الأساسية.
+
+To master this point, always remember the connection between vocabulary and real scientific facts.
+ترجمة وشرح: لإتقان هذه النقطة، تذكر دائماً الرابط الوثيق بين المفردات اللغوية والحقائق العلمية المقررة.
+
+${currentExplanation ? `Based on what we studied in this chapter, review the main examples and sentence patterns.
+ترجمة وشرح: استناداً لما درسناه في هذا الفصل، راجع دائماً نماذج الجمل وأمثلة القواعد المصاحبة.` : `Practice forming short sentences to express the lesson facts clearly.
+ترجمة وشرح: تدرّب على تكوين جمل قصيرة ومفيدة للتعبير عن حقائق الدرس بوضوح.`}
+
+⭐ **Key Learning Points (نقاط ذهبية للفهم):**
+1. Listen to the English pronunciation first, then read the Arabic translation. (استمع لنطق الجملة بالإنجليزية أولاً ثم طالع الترجمة العربية).
+2. Notice the grammar rule in action. (لاحظ تطبيق القاعدة النحوية في سياق الجملة).
+3. Test yourself with the quick unit quiz. (اختبر نفسك مباشرة في الاختبار السريع نهاية الوحدة).`;
+  }
+
   return `💡 **شرح تعليمي مخصص حول: ${question}**
 
 أهلاً بك يا بطل! استفسارك ممتاز ويدل على حرصك على الفهم العميق لدرس "${chapterTitle || 'الدرس'}" في كتاب "${bookTitle || 'المنهج المقرّر'}".
@@ -101,8 +130,17 @@ app.post('/api/ai/explain', async (req, res) => {
     const ai = getGenAI();
 
     if (ai) {
-      const prompt = `أنت معلم ذكي ومتميز وخبير في المناهج التعليمية العربية للمراحل المدرسية.
-المطلوب منك شرح استفسار الطالب التالي بأسلوب تعليمي مشوق ومبسط باللغة العربية الفصحى السهلة:
+      const isForeignSubject =
+        subject === 'english' ||
+        subject === 'french' ||
+        (bookTitle &&
+          (bookTitle.toLowerCase().includes('connect') ||
+            bookTitle.toLowerCase().includes('english') ||
+            bookTitle.toLowerCase().includes('إنجليزي') ||
+            bookTitle.toLowerCase().includes('فرنسي')));
+
+      const prompt = `أنت معلم ذكي ومتميز وخبير في المناهج التعليمية المدرسية.
+المطلوب منك شرح استفسار الطالب التالي بأسلوب تعليمي مشوق ومبسط:
 
 بيانات السياق:
 - المرحلة/الصف: ${grade || 'مرحلة دراسية'}
@@ -114,12 +152,20 @@ ${currentExplanation ? `- نبذة عن شرح الدرس الأساسي: ${curr
 سؤال الطالب أو ما يرغب بشرحه بالتحديد:
 "${question}"
 
-الرجاء تقديم الرد بهيكل منسق وواضح يشمل:
-1. 💡 **الشرح المبسط المباشر**: إجابة وشرح شافي وبسيط مدعوم بأمثلة واقعية ملائمة لسن الطالب.
-2. ⭐ **نقاط ذهبية للحفظ والفهم**: أهم 2-3 نقاط رئيسية ومركّزة.
-3. 🎯 **سؤال تدريبي سريع مع إجابته**: لتثبيت الفهم فوراً.
+${
+  isForeignSubject
+    ? `⚠️ توجيه تعليمي إلزامي للمواد واللغات الأجنبية (مثل الإنجليزية):
+يجب كتابة الشرح أولاً بلغة الكتاب (باللغة الإنجليزية في فقرات وجمل واضحة)، ووضع ترجمتها وشرحها التوضيحي باللغة العربية أسفل كل فقرة مباشرة بالصيغة:
+[Paragraph in English]
+ترجمة وشرح: [الترجمة والشرح باللغة العربية الفصحى]
+ليستفيد الطالب من القراءة باللغة الأصلية وفهمها بالعربية مع دعم القراءة الصوتية الثنائية (TTS).`
+    : 'اجعل الشرح باللغة العربية الفصحى السهلة والمشوقة.'
+}
 
-اجعل اللهجة ودودة ومحفزة للطالب وواضحة للقراءة وللتحويل الصوتي (TTS).`;
+الرجاء تقديم الرد بهيكل منسق وواضح يشمل:
+1. 💡 **الشرح المفاهيمي**: إجابة وشرح شافي وبسيط مدعوم بالأمثلة الواقعية.
+2. ⭐ **نقاط ذهبية للحفظ والفهم**: أهم 2-3 نقاط رئيسية ومركّزة.
+3. 🎯 **سؤال تدريبي سريع مع إجابته**: لتثبيت الفهم فوراً.`;
 
       try {
         const { text, modelUsed } = await generateWithModelFallback(ai, prompt);
@@ -182,6 +228,104 @@ ${currentExplanation ? `- نبذة عن شرح الدرس الأساسي: ${curr
       warning: 'تعذر الاتصال بخدمة الذكاء الاصطناعي مؤقتاً، تم توفير الشرح المنهجي البديل.',
     });
   }
+});
+
+// Automatic book curriculum and chapters extraction endpoint
+app.post('/api/ai/analyze-book', async (req, res) => {
+  const { fileName } = req.body || {};
+  if (!fileName || typeof fileName !== 'string') {
+    res.status(400).json({ error: 'اسم ملف الكتاب مطلوب' });
+    return;
+  }
+
+  // Pre-generate guaranteed high-precision curriculum baseline from knowledge base
+  const localCurriculum = generateCurriculumFromFilename(fileName);
+
+  const ai = getGenAI();
+  if (ai) {
+    try {
+      const prompt = `أنت خبير معتمد في المناهج التعليمية المصرية والعربية ومؤلف كتب مدرسية متميزة.
+تم رفع ملف كتاب مدرسي باسم: "${fileName}".
+قم بتحليل اسم الكتاب واستخرج بياناته وفصوله الحقيقية وشروحاتها الكاملة بشكل متقن جداً للطلاب باللغة العربية.
+
+توجيه خاص بالمواد واللغات الأجنبية (مثل الإنجليزية والفرنسية وكتب Connect و Connect Plus):
+إذا كان الكتاب لمادة لغة أجنبية:
+يجب أن يكون "detailedExplanation" مكتوباً بلغة الكتاب أولاً (مثلاً باللغة الإنجليزية في فقرات واضحة وثرية) متبوعاً بترجمته وشرحه التوضيحي باللغة العربية أسفل كل فقرة مباشرة بالصيغة:
+[Paragraph in English]
+ترجمة وشرح: [الترجمة والشرح باللغة العربية الفصحى]
+ليتمكن النظام من تقديم الشرح المزدوج وقراءته صوتياً بلغة الكتاب ثم الترجمة.
+
+أخرج النتيجة بصيغة JSON حصراً بهذا الشكل:
+{
+  "title": "اسم الكتاب الرسمي المنقح بالعربية",
+  "author": "اسم المؤلف أو دار النشر المعتمدة (سلسلة المعاصر أو الأضواء أو سلاح التلميذ أو الامتحان...)",
+  "publisher": "دار النشر",
+  "stageId": "primary" أو "prep" أو "secondary",
+  "gradeId": "grade-p1" إلى "grade-p6" أو "grade-m1" إلى "grade-m3" أو "grade-s1" إلى "grade-s3",
+  "subjectId": "arabic" أو "math" أو "science" أو "social" أو "english" أو "islamic" أو "physics" أو "chemistry" أو "biology" أو "history" أو "geography" أو "philosophy" أو "psychology" أو "pure_math",
+  "streamId": "scientific" أو "literary" أو "general" (إذا كانت ثانوية),
+  "description": "وصف شيق وتفصيلي لمحتوى الكتاب ومميزاته للطلاب في 3 أسطر",
+  "chapters": [
+    {
+      "number": 1,
+      "title": "عنوان الوحدة أو الفصل الأول والدرس التابع له",
+      "summary": "ملخص شامل للأفكار الأساسية في الفصل",
+      "detailedExplanation": "شرح تعليمي غني وتفصيلي (إذا كان الكتاب بالإنجليزية اكتب بالإنجليزية متبوعاً بـ 'ترجمة وشرح: ' أسفل كل فقرة، أما إذا كان بالعربية فاكتب بالعربية الفصحى)",
+      "keyPoints": [
+        "نقطة ذهبية 1 للتفوق في الامتحان",
+        "نقطة ذهبية 2 للقوانين أو القواعد",
+        "نقطة ذهبية 3"
+      ],
+      "definitions": [
+        {"term": "المصطلح الأول", "definition": "التعريف الدقيق والمبسط"},
+        {"term": "المصطلح الثاني", "definition": "التعريف الدقيق والمبسط"}
+      ],
+      "estimatedMinutes": 10,
+      "quiz": [
+        {
+          "question": "سؤال اختيار من متعدد دقيق على الفصل",
+          "options": ["الخيار الصحيح", "خيار غير صحيح", "خيار آخر", "خيار رابع"],
+          "correctIndex": 0,
+          "explanation": "شرح تعليمي لسبب صحة الخيار الأول"
+        }
+      ]
+    }
+  ]
+}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-lite',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+        },
+      });
+
+      if (response && response.text) {
+        const parsed = JSON.parse(response.text);
+        if (parsed.title && Array.isArray(parsed.chapters) && parsed.chapters.length > 0) {
+          res.json({
+            success: true,
+            source: 'gemini-ai',
+            data: {
+              ...localCurriculum,
+              ...parsed,
+              coverImage: localCurriculum.coverImage,
+            },
+          });
+          return;
+        }
+      }
+    } catch {
+      // Fallback silently to guaranteed local curriculum
+    }
+  }
+
+  res.json({
+    success: true,
+    source: 'curriculum-engine',
+    data: localCurriculum,
+  });
 });
 
 // Vite Middleware & Static handling
