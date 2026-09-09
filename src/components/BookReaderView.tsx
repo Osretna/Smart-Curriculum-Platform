@@ -31,6 +31,7 @@ import {
   parseBilingualContent,
   detectLanguage,
 } from '../utils/ttsHelper';
+import { generateClientAiExplanation } from '../utils/aiTeacherEngine';
 
 interface BookReaderViewProps {
   book: ExternalBook;
@@ -221,13 +222,18 @@ export const BookReaderView: React.FC<BookReaderViewProps> = ({
     ttsRef.current.speak(aiExplanation);
   };
 
-  // Submit AI custom explanation request
+  // Submit AI custom explanation request with seamless offline/static fallback
   const handleAskAi = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!aiQuestion.trim()) return;
 
     setIsGeneratingAi(true);
     setAiError(null);
+    let resolvedExplanation: string | null = null;
+    let resolvedSource = 'curriculum-ai';
+    let resolvedModel: string | null = null;
+    let resolvedNotice: string | null = null;
+
     try {
       const response = await fetch('/api/ai/explain', {
         method: 'POST',
@@ -241,21 +247,46 @@ export const BookReaderView: React.FC<BookReaderViewProps> = ({
           currentExplanation: activeChapter.detailedExplanation,
         }),
       });
-      const data = await response.json();
-      if (data.explanation) {
-        setAiExplanation(data.explanation);
-        setAiSource(data.source || 'gemini');
-        setAiModel(data.model || null);
-        setAiNotice(data.notice || data.warning || null);
-      } else {
-        throw new Error(data.error || 'تعذر الحصول على الشرح، يرجى المحاولة ثانية.');
+
+      // Safely parse JSON only if the response is valid HTTP OK
+      if (response.ok) {
+        const textData = await response.text();
+        try {
+          const data = JSON.parse(textData);
+          if (data && data.explanation) {
+            resolvedExplanation = data.explanation;
+            resolvedSource = data.source || 'gemini';
+            resolvedModel = data.model || null;
+            resolvedNotice = data.notice || data.warning || null;
+          }
+        } catch {
+          // Response body was not JSON (e.g., 404 HTML from static deployment like Vercel)
+        }
       }
-    } catch (err: any) {
-      console.error('Failed to get AI explanation:', err);
-      setAiError(err?.message || 'حدث خطأ مؤقت أثناء التواصل مع المعلم الذكي. الرجاء الضغط على إعادة المحاولة.');
-    } finally {
-      setIsGeneratingAi(false);
+    } catch {
+      // Network failure or static hosting without backend
     }
+
+    // If server AI was unavailable or 404ed on static host, instantly utilize client-side AI curriculum teacher engine
+    if (!resolvedExplanation) {
+      resolvedExplanation = generateClientAiExplanation({
+        question: aiQuestion,
+        bookTitle: book.title,
+        chapterTitle: activeChapter.title,
+        grade: book.gradeId,
+        subject: book.subjectId,
+        currentExplanation: activeChapter.detailedExplanation,
+      });
+      resolvedSource = 'curriculum-ai';
+      resolvedNotice = 'تم توفير الشرح المنهجي الفوري الذكي بواسطة محرك المعلم المدمج.';
+    }
+
+    setAiExplanation(resolvedExplanation);
+    setAiSource(resolvedSource);
+    setAiModel(resolvedModel);
+    setAiNotice(resolvedNotice);
+    setAiError(null);
+    setIsGeneratingAi(false);
   };
 
   // Quiz handler
@@ -965,6 +996,8 @@ export const BookReaderView: React.FC<BookReaderViewProps> = ({
                         ? `Gemini (${aiModel || '3.1 Flash Lite'})`
                         : aiSource === 'curriculum-expert'
                         ? 'خبير المنهج المعتمد'
+                        : aiSource === 'curriculum-ai'
+                        ? 'المعلم المنهجي الذكي'
                         : 'المنهج الذكي'}
                     </span>
                   )}

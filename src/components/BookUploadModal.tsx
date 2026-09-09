@@ -182,7 +182,14 @@ export const BookUploadModal: React.FC<BookUploadModalProps> = ({
         }),
       });
 
-      const result = await response.json();
+      let result: any = null;
+      if (response.ok) {
+        try {
+          result = await response.json();
+        } catch {
+          // non-JSON response fallback
+        }
+      }
       clearInterval(stepInterval);
 
       if (result && result.data) {

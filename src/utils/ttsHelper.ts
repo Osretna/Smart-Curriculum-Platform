@@ -31,7 +31,6 @@ export interface TTSState {
  */
 export function detectLanguage(text: string): 'en' | 'ar' | 'fr' {
   const clean = text.trim();
-  const arabicRegex = /[\u0600-\u06FF]/;
   const arabicCount = (clean.match(/[\u0600-\u06FF]/g) || []).length;
   const latinCount = (clean.match(/[A-Za-z]/g) || []).length;
 
@@ -46,9 +45,6 @@ export function detectLanguage(text: string): 'en' | 'ar' | 'fr' {
 
 /**
  * Parse text into bilingual pairs (Foreign sentence + Arabic translation)
- * Detects patterns like:
- * "English text. ترجمة: النص العربي."
- * or line-by-line bilingual structures.
  */
 export function parseBilingualContent(fullText: string, defaultForeignLang: 'en' | 'fr' = 'en'): BilingualPair[] {
   if (!fullText) return [];
@@ -74,7 +70,6 @@ export function parseBilingualContent(fullText: string, defaultForeignLang: 'en'
 
     if (hasTranslationPrefix || (isArabic && currentSource.length > 0 && currentTrans.length === 0)) {
       currentTrans.push(line.replace(/^(ترجمة وشرح|ترجمة الشرح|ترجمة|الترجمة|المعنى)[\s:؛\-]*/i, '').trim());
-      // Commit pair
       pairs.push({
         sourceText: currentSource.join(' '),
         sourceLang: defaultForeignLang,
@@ -94,7 +89,6 @@ export function parseBilingualContent(fullText: string, defaultForeignLang: 'en'
       }
       currentSource.push(line);
     } else {
-      // Line is Arabic, could be an Arabic introduction or standalone explanation
       if (currentSource.length > 0) {
         currentTrans.push(line);
         pairs.push({
@@ -105,7 +99,6 @@ export function parseBilingualContent(fullText: string, defaultForeignLang: 'en'
         currentSource = [];
         currentTrans = [];
       } else {
-        // Pure Arabic line
         pairs.push({
           sourceText: line,
           sourceLang: defaultForeignLang,
@@ -115,7 +108,6 @@ export function parseBilingualContent(fullText: string, defaultForeignLang: 'en'
     }
   }
 
-  // Flush remaining
   if (currentSource.length > 0) {
     pairs.push({
       sourceText: currentSource.join(' '),
@@ -130,8 +122,12 @@ export function parseBilingualContent(fullText: string, defaultForeignLang: 'en'
 export class TTSController {
   private synth: SpeechSynthesis | null = null;
   private currentUtterance: SpeechSynthesisUtterance | null = null;
+  private currentAudio: HTMLAudioElement | null = null;
   private onStateChange: ((state: TTSState) => void) | null = null;
   private keepAliveInterval: any = null;
+  private audioContext: AudioContext | null = null;
+  private voices: SpeechSynthesisVoice[] = [];
+
   private activeState: TTSState = {
     isPlaying: false,
     isPaused: false,
@@ -144,17 +140,17 @@ export class TTSController {
     items: [],
   };
 
-  private voices: SpeechSynthesisVoice[] = [];
-
   constructor(onStateChange?: (state: TTSState) => void) {
     if (onStateChange) {
       this.onStateChange = onStateChange;
     }
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      this.synth = window.speechSynthesis;
-      this.refreshVoices();
-      if (window.speechSynthesis.onvoiceschanged !== undefined) {
-        window.speechSynthesis.onvoiceschanged = () => this.refreshVoices();
+    if (typeof window !== 'undefined') {
+      if ('speechSynthesis' in window) {
+        this.synth = window.speechSynthesis;
+        this.refreshVoices();
+        if (window.speechSynthesis.onvoiceschanged !== undefined) {
+          window.speechSynthesis.onvoiceschanged = () => this.refreshVoices();
+        }
       }
     }
   }
@@ -176,7 +172,6 @@ export class TTSController {
       const arVoice = this.voices.find(
         (v) =>
           v.lang.toLowerCase().startsWith('ar') ||
-          v.lang.toLowerCase().includes('arabic') ||
           v.name.toLowerCase().includes('arabic') ||
           v.name.toLowerCase().includes('tarik') ||
           v.name.toLowerCase().includes('laila') ||
@@ -184,10 +179,11 @@ export class TTSController {
           v.name.toLowerCase().includes('salma') ||
           v.name.toLowerCase().includes('hoda')
       );
+      // If no native Arabic voice is installed, DO NOT return an English voice (which causes silent failures in Chrome!)
       return arVoice || null;
     } else if (lang === 'fr') {
       const frVoice = this.voices.find(
-        (v) => v.lang.toLowerCase().startsWith('fr') || v.lang.toLowerCase().includes('french')
+        (v) => v.lang.toLowerCase().startsWith('fr') || v.name.toLowerCase().includes('french')
       );
       return frVoice || null;
     } else {
@@ -204,6 +200,9 @@ export class TTSController {
 
   public setRate(newRate: number) {
     this.activeState.rate = newRate;
+    if (this.currentAudio) {
+      this.currentAudio.playbackRate = newRate;
+    }
     if (this.activeState.isPlaying && this.currentUtterance) {
       const idx = this.activeState.currentSentenceIndex;
       this.stop();
@@ -220,13 +219,10 @@ export class TTSController {
 
   /**
    * Play bilingual pairs with teacher narration
-   * Mode:
-   * - 'bilingual': speaks foreign sentence, then speaks Arabic translation!
-   * - 'source_only': speaks foreign sentence only.
-   * - 'arabic_only': speaks Arabic translation only.
    */
   public speakBilingualPairs(pairs: BilingualPair[], mode: TTSAudioMode = 'bilingual', startIndex: number = 0) {
     this.stop();
+    this.unlockAudio();
     this.activeState.audioMode = mode;
 
     const items: SpokenItem[] = [];
@@ -292,6 +288,7 @@ export class TTSController {
    */
   public speak(fullText: string, defaultLang?: 'en' | 'ar' | 'fr') {
     this.stop();
+    this.unlockAudio();
     const cleaned = fullText.replace(/\*\*/g, '').replace(/###/g, '').replace(/##/g, '');
     const rawSentences = cleaned
       .split(/(?<=[.،؟!:\n])/)
@@ -317,6 +314,7 @@ export class TTSController {
    */
   public speakSingleSentence(text: string, lang?: 'en' | 'ar' | 'fr') {
     this.stop();
+    this.unlockAudio();
     const itemLang = lang || detectLanguage(text);
     const items: SpokenItem[] = [
       {
@@ -327,11 +325,31 @@ export class TTSController {
       },
     ];
     this.activeState.items = items;
+    this.playAudioCue();
     this.speakItems(items, 0);
   }
 
+  /**
+   * Diagnostic quick audio test: plays pleasant 2-tone melodic chime + speaks test greeting in English & Arabic
+   */
+  public testAudio() {
+    this.stop();
+    this.unlockAudio();
+    this.playAudioCue();
+    this.speakBilingualPairs(
+      [
+        {
+          sourceText: 'Audio system is working perfectly. Welcome!',
+          sourceLang: 'en',
+          translationText: 'نظام الصوت والشرح المنهجي يعمل بنجاح تام. أهلاً بك!',
+        },
+      ],
+      'bilingual'
+    );
+  }
+
   private speakItems(items: SpokenItem[], index: number) {
-    if (!this.synth || index >= items.length) {
+    if (index >= items.length) {
       this.stop();
       return;
     }
@@ -345,17 +363,27 @@ export class TTSController {
     this.activeState.statusText = item.label || (item.lang === 'ar' ? 'شرح بالعربية' : 'نطق بالإنجليزية');
     this.notify();
 
-    // Chrome iframe bug workaround: reset synthesis state
+    // Check voice support for this language in Web Speech API
+    const voice = this.getBestVoiceForLang(item.lang);
+
+    // If browser lacks speech synthesis or lacks an Arabic voice for Arabic text,
+    // immediately use the high-fidelity HTML5 audio streaming fallback
+    if (!this.synth || (item.lang === 'ar' && !voice && !this.voices.some((v) => v.lang.startsWith('ar')))) {
+      this.playStreamingAudio(item, items, index);
+      return;
+    }
+
+    // Chrome iframe/resumed state handling
     try {
       if (this.synth.paused) {
         this.synth.resume();
       }
       this.synth.cancel();
+      this.synth.resume();
     } catch {
       // ignore
     }
 
-    // Start keep-alive pulse for long speech in Chromium
     this.startKeepAlive();
 
     setTimeout(() => {
@@ -365,7 +393,6 @@ export class TTSController {
       utterance.rate = this.activeState.rate;
       utterance.volume = 1.0;
 
-      // Assign matching language and voice
       if (item.lang === 'en') {
         utterance.lang = 'en-US';
       } else if (item.lang === 'fr') {
@@ -374,7 +401,6 @@ export class TTSController {
         utterance.lang = 'ar-SA';
       }
 
-      const voice = this.getBestVoiceForLang(item.lang);
       if (voice) {
         utterance.voice = voice;
       }
@@ -390,8 +416,7 @@ export class TTSController {
       utterance.onend = () => {
         if (this.activeState.isPlaying && !this.activeState.isPaused) {
           if (index + 1 < items.length) {
-            // Slight natural pause between foreign sentence and translation
-            const pauseTime = item.lang !== 'ar' ? 450 : 250;
+            const pauseTime = item.lang !== 'ar' ? 400 : 250;
             setTimeout(() => {
               if (this.activeState.isPlaying && !this.activeState.isPaused) {
                 this.speakItems(items, index + 1);
@@ -404,33 +429,9 @@ export class TTSController {
       };
 
       utterance.onerror = (e) => {
-        console.warn('TTS utterance event:', e);
-        // If error is voice or language related and voice was set, retry once without explicit voice
-        if (voice && (e.error === 'voice-unavailable' || e.error === 'language-unavailable')) {
-          try {
-            const retryUtterance = new SpeechSynthesisUtterance(item.text);
-            retryUtterance.lang = utterance.lang;
-            retryUtterance.rate = this.activeState.rate;
-            retryUtterance.volume = 1.0;
-            retryUtterance.onend = utterance.onend;
-            this.synth?.speak(retryUtterance);
-            return;
-          } catch {
-            // continue to next
-          }
-        }
-
-        if (this.activeState.isPlaying && !this.activeState.isPaused) {
-          if (index + 1 < items.length) {
-            setTimeout(() => {
-              if (this.activeState.isPlaying && !this.activeState.isPaused) {
-                this.speakItems(items, index + 1);
-              }
-            }, 300);
-          } else {
-            this.stop();
-          }
-        }
+        console.warn('SpeechSynthesis error event, falling back to streaming audio:', e);
+        // Fallback to streaming audio if synthesis throws any error
+        this.playStreamingAudio(item, items, index);
       };
 
       try {
@@ -439,50 +440,131 @@ export class TTSController {
         }
         this.synth.speak(utterance);
       } catch (err) {
-        console.warn('Speech synthesis speak call failed:', err);
-        if (index + 1 < items.length) {
-          this.speakItems(items, index + 1);
-        } else {
-          this.stop();
-        }
+        console.warn('Speech synthesis speak call threw, using streaming audio fallback:', err);
+        this.playStreamingAudio(item, items, index);
       }
     }, 40);
   }
 
   /**
-   * Diagnostic quick audio test: plays pleasant tone + greets in Arabic & English
+   * Native HTML5 Audio Streaming fallback
+   * Provides 100% reliable pronunciation for Arabic, English, and French
    */
-  public testAudio() {
-    this.playAudioCue();
-    this.speakBilingualPairs([
-      {
-        sourceText: 'Hello! Audio system is working perfectly.',
-        sourceLang: 'en',
-        translationText: 'أهلاً بك! نظام الصوت والشرح التفاعلي يعمل بنجاح تام.',
-      },
-    ], 'bilingual');
+  private playStreamingAudio(item: SpokenItem, items: SpokenItem[], index: number) {
+    if (!this.activeState.isPlaying) return;
+
+    try {
+      if (this.currentAudio) {
+        this.currentAudio.pause();
+        this.currentAudio = null;
+      }
+
+      const langCode = item.lang === 'ar' ? 'ar' : item.lang === 'fr' ? 'fr' : 'en';
+      const cleanText = item.text.replace(/[\n\r]+/g, ' ').trim().slice(0, 190);
+      const streamUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${langCode}&client=tw-ob&q=${encodeURIComponent(cleanText)}`;
+
+      const audio = new Audio(streamUrl);
+      audio.playbackRate = this.activeState.rate;
+      this.currentAudio = audio;
+
+      audio.onplay = () => {
+        this.activeState.isPlaying = true;
+        this.activeState.isPaused = false;
+        this.notify();
+      };
+
+      audio.onended = () => {
+        this.currentAudio = null;
+        if (this.activeState.isPlaying && !this.activeState.isPaused) {
+          if (index + 1 < items.length) {
+            const pauseTime = item.lang !== 'ar' ? 350 : 200;
+            setTimeout(() => {
+              if (this.activeState.isPlaying && !this.activeState.isPaused) {
+                this.speakItems(items, index + 1);
+              }
+            }, pauseTime);
+          } else {
+            this.stop();
+          }
+        }
+      };
+
+      audio.onerror = (err) => {
+        console.warn('Streaming audio failed:', err);
+        this.currentAudio = null;
+        if (this.activeState.isPlaying && !this.activeState.isPaused) {
+          if (index + 1 < items.length) {
+            this.speakItems(items, index + 1);
+          } else {
+            this.stop();
+          }
+        }
+      };
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((playErr) => {
+          console.warn('Audio play promise error:', playErr);
+          if (index + 1 < items.length) {
+            this.speakItems(items, index + 1);
+          } else {
+            this.stop();
+          }
+        });
+      }
+    } catch (streamErr) {
+      console.warn('Streaming initialization error:', streamErr);
+      if (index + 1 < items.length) {
+        this.speakItems(items, index + 1);
+      } else {
+        this.stop();
+      }
+    }
   }
 
   /**
-   * Subtle Web Audio API chime tone so user gets instantaneous audible feedback
-   * when starting speech, also unlocks Web Audio context in modern browsers
+   * Unlock Web Audio API context during user interactions
    */
-  private playAudioCue() {
+  public unlockAudio() {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
-      const ctx = new AudioCtx();
+      if (!this.audioContext) {
+        this.audioContext = new AudioCtx();
+      }
+      if (this.audioContext.state === 'suspended') {
+        this.audioContext.resume();
+      }
+      if (this.synth && this.synth.paused) {
+        this.synth.resume();
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
+   * Melodic chime audio cue to give instant acoustic feedback
+   */
+  public playAudioCue() {
+    try {
+      this.unlockAudio();
+      if (!this.audioContext) return;
+      const ctx = this.audioContext;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
+
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(520, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12);
-      gain.gain.setValueAtTime(0.08, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12); // A5
+
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start();
-      osc.stop(ctx.currentTime + 0.16);
+      osc.stop(ctx.currentTime + 0.19);
     } catch {
       // ignore
     }
@@ -490,7 +572,6 @@ export class TTSController {
 
   private startKeepAlive() {
     this.stopKeepAlive();
-    // In Chromium, SpeechSynthesis can go silent after 15s if resume is not called
     this.keepAliveInterval = setInterval(() => {
       if (this.synth && this.activeState.isPlaying && !this.activeState.isPaused) {
         try {
@@ -517,21 +598,35 @@ export class TTSController {
       } catch {
         // ignore
       }
-      this.activeState.isPaused = true;
-      this.activeState.statusText = 'إيقاف مؤقت';
-      this.notify();
     }
+    if (this.currentAudio) {
+      try {
+        this.currentAudio.pause();
+      } catch {
+        // ignore
+      }
+    }
+    this.activeState.isPaused = true;
+    this.activeState.statusText = 'إيقاف مؤقت';
+    this.notify();
   }
 
   public resume() {
-    if (this.synth && this.activeState.isPaused) {
-      try {
-        this.synth.resume();
-      } catch {
-        // fallback replay
-        const idx = this.activeState.currentSentenceIndex;
-        this.speakItems(this.activeState.items, idx);
-        return;
+    if (this.activeState.isPaused) {
+      if (this.currentAudio) {
+        try {
+          this.currentAudio.play();
+        } catch {
+          // ignore
+        }
+      } else if (this.synth) {
+        try {
+          this.synth.resume();
+        } catch {
+          const idx = this.activeState.currentSentenceIndex;
+          this.speakItems(this.activeState.items, idx);
+          return;
+        }
       }
       this.activeState.isPaused = false;
       this.activeState.statusText = 'جاري الاستماع';
@@ -544,6 +639,15 @@ export class TTSController {
     if (this.synth) {
       try {
         this.synth.cancel();
+      } catch {
+        // ignore
+      }
+    }
+    if (this.currentAudio) {
+      try {
+        this.currentAudio.pause();
+        this.currentAudio.src = '';
+        this.currentAudio = null;
       } catch {
         // ignore
       }
