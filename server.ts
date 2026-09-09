@@ -232,20 +232,24 @@ ${
 
 // Automatic book curriculum and chapters extraction endpoint
 app.post('/api/ai/analyze-book', async (req, res) => {
-  const { fileName } = req.body || {};
+  const { fileName, extractedText } = req.body || {};
   if (!fileName || typeof fileName !== 'string') {
     res.status(400).json({ error: 'اسم ملف الكتاب مطلوب' });
     return;
   }
 
   // Pre-generate guaranteed high-precision curriculum baseline from knowledge base
-  const localCurriculum = generateCurriculumFromFilename(fileName);
+  const localCurriculum = generateCurriculumFromFilename(fileName, typeof extractedText === 'string' ? extractedText : undefined);
 
   const ai = getGenAI();
   if (ai) {
     try {
+      const textContext = typeof extractedText === 'string' && extractedText.trim().length > 30
+        ? `\nعينة من النصوص المفهرسة والمستخرجة مباشرة من داخل ملف الكتاب المرفوع:\n"""\n${extractedText.slice(0, 4000)}\n"""\nاستند إلى هذه النصوص والفهرس المستخرج بدقة لتحديد الفصول الحقيقية ومحتواها.`
+        : '';
+
       const prompt = `أنت خبير معتمد في المناهج التعليمية المصرية والعربية ومؤلف كتب مدرسية متميزة.
-تم رفع ملف كتاب مدرسي باسم: "${fileName}".
+تم رفع ملف كتاب مدرسي باسم: "${fileName}".${textContext}
 قم بتحليل اسم الكتاب واستخرج بياناته وفصوله الحقيقية وشروحاتها الكاملة بشكل متقن جداً للطلاب باللغة العربية.
 
 توجيه خاص بالمواد واللغات الأجنبية (مثل الإنجليزية والفرنسية وكتب Connect و Connect Plus):

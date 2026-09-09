@@ -31,8 +31,9 @@ export interface ExtractedBookData {
  * High-accuracy local curriculum knowledge base for Egyptian/Arab school books
  * (e.g. Al-Moasser, Al-Adwaa, Selah El-Telmeez, El-Emtehan, Newton, etc.)
  */
-export function generateCurriculumFromFilename(fileName: string): ExtractedBookData {
-  const clean = fileName.toLowerCase().replace(/[\-_]/g, ' ');
+export function generateCurriculumFromFilename(fileName: string, extractedText?: string): ExtractedBookData {
+  const textSample = (extractedText ? extractedText.slice(0, 5000) : '').toLowerCase();
+  const clean = (fileName + ' ' + textSample).toLowerCase().replace(/[\-_]/g, ' ');
 
   // 1. Stage & Grade Detection
   let stageId: EducationalStageId = 'primary';

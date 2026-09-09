@@ -571,6 +571,18 @@ export const BookReaderView: React.FC<BookReaderViewProps> = ({
                 ))}
               </div>
 
+              {/* Sound Test / Diagnostic Button */}
+              <button
+                type="button"
+                id="test-tts-audio-btn"
+                onClick={() => ttsRef.current?.testAudio()}
+                className="px-2.5 py-1 rounded-lg font-bold bg-white/10 hover:bg-white/20 text-amber-200 border border-amber-300/30 transition cursor-pointer text-xs flex items-center gap-1.5"
+                title="اضغط للتأكد من عمل الصوت والنطق باللغتين الإنجليزية والعربية"
+              >
+                <Volume2 className="w-3.5 h-3.5 text-amber-300" />
+                <span>فحص الصوت</span>
+              </button>
+
               {/* Live Audio indicator */}
               {ttsState.isPlaying && !ttsState.isPaused && (
                 <div className="flex items-center gap-2 font-bold animate-pulse">

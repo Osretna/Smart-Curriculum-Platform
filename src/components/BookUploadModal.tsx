@@ -21,6 +21,7 @@ import {
 import { STAGES_CONFIG, PRIMARY_SUBJECTS, PREP_SUBJECTS, SECONDARY_STREAM_SUBJECTS } from '../data/curriculumData';
 import { EducationalStageId, ExternalBook, SecondaryStreamId, UserProfile, Chapter } from '../types';
 import { generateCurriculumFromFilename } from '../utils/bookAnalyzer';
+import { extractDocumentText } from '../utils/fileTextExtractor';
 
 interface BookUploadModalProps {
   isOpen: boolean;
@@ -69,6 +70,12 @@ export const BookUploadModal: React.FC<BookUploadModalProps> = ({
   const [extractionSource, setExtractionSource] = useState<'ai' | 'engine' | null>(null);
   const [showManualFields, setShowManualFields] = useState(false);
   const [expandedChapterIndex, setExpandedChapterIndex] = useState<number | null>(0);
+
+  // Document Content Metrics & Preview
+  const [extractedPagesCount, setExtractedPagesCount] = useState<number>(0);
+  const [extractedWordsCount, setExtractedWordsCount] = useState<number>(0);
+  const [extractedSnippets, setExtractedSnippets] = useState<string[]>([]);
+  const [showSnippets, setShowSnippets] = useState<boolean>(false);
 
   // Chapters creator with rich defaults
   const [chapters, setChapters] = useState<ChapterDraft[]>([
@@ -145,7 +152,21 @@ export const BookUploadModal: React.FC<BookUploadModalProps> = ({
     setExtractedSuccess(false);
     setAnalysisStep(1);
 
-    // Step animation timer
+    // Step 1: Extract real text directly from the uploaded document
+    let extractedText = '';
+    try {
+      const docResult = await extractDocumentText(file);
+      extractedText = docResult.text;
+      setExtractedPagesCount(docResult.numPages);
+      setExtractedWordsCount(docResult.wordCount);
+      setExtractedSnippets(docResult.sampleSnippets);
+    } catch (extractErr) {
+      console.warn('Direct document extraction warning:', extractErr);
+    }
+
+    setAnalysisStep(2);
+
+    // Step animation timer for UI feedback
     const stepInterval = setInterval(() => {
       setAnalysisStep((prev) => (prev < 3 ? prev + 1 : prev));
     }, 650);
@@ -157,6 +178,7 @@ export const BookUploadModal: React.FC<BookUploadModalProps> = ({
         body: JSON.stringify({
           fileName: file.name,
           fileSize: (file.size / (1024 * 1024)).toFixed(1) + ' MB',
+          extractedText,
         }),
       });
 
@@ -166,13 +188,13 @@ export const BookUploadModal: React.FC<BookUploadModalProps> = ({
       if (result && result.data) {
         applyExtractedData(result.data, result.source === 'gemini-ai' ? 'ai' : 'engine');
       } else {
-        // Safe local fallback
-        const localData = generateCurriculumFromFilename(file.name);
+        // Safe authentic local fallback using the real extracted text!
+        const localData = generateCurriculumFromFilename(file.name, extractedText);
         applyExtractedData(localData, 'engine');
       }
     } catch {
       clearInterval(stepInterval);
-      const localData = generateCurriculumFromFilename(file.name);
+      const localData = generateCurriculumFromFilename(file.name, extractedText);
       applyExtractedData(localData, 'engine');
     } finally {
       setIsAnalyzing(false);
@@ -465,6 +487,36 @@ export const BookUploadModal: React.FC<BookUploadModalProps> = ({
                   <p className="text-[11px] text-purple-600 dark:text-purple-400 font-semibold">جاهز لمشغل الصوت العربي (TTS)</p>
                 </div>
               </div>
+
+              {/* Document Text Extraction Metrics */}
+              {extractedWordsCount > 0 && (
+                <div className="p-2.5 rounded-xl bg-emerald-100/60 dark:bg-emerald-900/30 border border-emerald-200/80 dark:border-emerald-800/40 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="font-bold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5 text-[11px]">
+                      <FileText className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <span>تمت قراءة وفهرسة محتوى الملف الفعلي بنجاح ({extractedWordsCount.toLocaleString()} كلمة • {extractedPagesCount} صفحة)</span>
+                    </span>
+                    {extractedSnippets.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowSnippets(!showSnippets)}
+                        className="text-[10px] text-emerald-800 dark:text-emerald-300 font-bold underline cursor-pointer"
+                      >
+                        {showSnippets ? 'إخفاء عينة النص' : 'معاينة عينة من نص الكتاب المفهرس'}
+                      </button>
+                    )}
+                  </div>
+                  {showSnippets && extractedSnippets.length > 0 && (
+                    <div className="p-2 rounded-lg bg-white/80 dark:bg-slate-900/80 text-[11px] text-slate-700 dark:text-slate-300 space-y-1 border border-emerald-200/50 dark:border-emerald-800/30">
+                      {extractedSnippets.map((snip, sIdx) => (
+                        <p key={sIdx} className="line-clamp-2 italic text-slate-600 dark:text-slate-400">
+                          "... {snip} ..."
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

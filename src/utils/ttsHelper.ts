@@ -173,33 +173,33 @@ export class TTSController {
     if (!this.voices || this.voices.length === 0) return null;
 
     if (lang === 'ar') {
-      // Find Arabic voice (e.g. ar-SA, ar-EG, ar)
       const arVoice = this.voices.find(
         (v) =>
           v.lang.toLowerCase().startsWith('ar') ||
           v.lang.toLowerCase().includes('arabic') ||
-          v.name.toLowerCase().includes('arabic')
+          v.name.toLowerCase().includes('arabic') ||
+          v.name.toLowerCase().includes('tarik') ||
+          v.name.toLowerCase().includes('laila') ||
+          v.name.toLowerCase().includes('maged') ||
+          v.name.toLowerCase().includes('salma') ||
+          v.name.toLowerCase().includes('hoda')
       );
-      if (arVoice) return arVoice;
+      return arVoice || null;
     } else if (lang === 'fr') {
       const frVoice = this.voices.find(
         (v) => v.lang.toLowerCase().startsWith('fr') || v.lang.toLowerCase().includes('french')
       );
-      if (frVoice) return frVoice;
+      return frVoice || null;
     } else {
-      // English
       const enVoice = this.voices.find(
         (v) =>
-          (v.lang.toLowerCase().startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google'))) ||
+          (v.lang.toLowerCase().startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Online'))) ||
           v.lang.toLowerCase().startsWith('en-us') ||
           v.lang.toLowerCase().startsWith('en-gb') ||
           v.lang.toLowerCase().startsWith('en')
       );
-      if (enVoice) return enVoice;
+      return enVoice || null;
     }
-
-    // Fallback: any voice
-    return this.voices[0] || null;
   }
 
   public setRate(newRate: number) {
@@ -347,6 +347,9 @@ export class TTSController {
 
     // Chrome iframe bug workaround: reset synthesis state
     try {
+      if (this.synth.paused) {
+        this.synth.resume();
+      }
       this.synth.cancel();
     } catch {
       // ignore
@@ -360,6 +363,7 @@ export class TTSController {
 
       const utterance = new SpeechSynthesisUtterance(item.text);
       utterance.rate = this.activeState.rate;
+      utterance.volume = 1.0;
 
       // Assign matching language and voice
       if (item.lang === 'en') {
@@ -376,6 +380,12 @@ export class TTSController {
       }
 
       this.currentUtterance = utterance;
+
+      utterance.onstart = () => {
+        this.activeState.isPlaying = true;
+        this.activeState.isPaused = false;
+        this.notify();
+      };
 
       utterance.onend = () => {
         if (this.activeState.isPlaying && !this.activeState.isPaused) {
@@ -395,9 +405,28 @@ export class TTSController {
 
       utterance.onerror = (e) => {
         console.warn('TTS utterance event:', e);
+        // If error is voice or language related and voice was set, retry once without explicit voice
+        if (voice && (e.error === 'voice-unavailable' || e.error === 'language-unavailable')) {
+          try {
+            const retryUtterance = new SpeechSynthesisUtterance(item.text);
+            retryUtterance.lang = utterance.lang;
+            retryUtterance.rate = this.activeState.rate;
+            retryUtterance.volume = 1.0;
+            retryUtterance.onend = utterance.onend;
+            this.synth?.speak(retryUtterance);
+            return;
+          } catch {
+            // continue to next
+          }
+        }
+
         if (this.activeState.isPlaying && !this.activeState.isPaused) {
           if (index + 1 < items.length) {
-            this.speakItems(items, index + 1);
+            setTimeout(() => {
+              if (this.activeState.isPlaying && !this.activeState.isPaused) {
+                this.speakItems(items, index + 1);
+              }
+            }, 300);
           } else {
             this.stop();
           }
@@ -405,6 +434,9 @@ export class TTSController {
       };
 
       try {
+        if (this.synth.paused) {
+          this.synth.resume();
+        }
         this.synth.speak(utterance);
       } catch (err) {
         console.warn('Speech synthesis speak call failed:', err);
@@ -415,6 +447,20 @@ export class TTSController {
         }
       }
     }, 40);
+  }
+
+  /**
+   * Diagnostic quick audio test: plays pleasant tone + greets in Arabic & English
+   */
+  public testAudio() {
+    this.playAudioCue();
+    this.speakBilingualPairs([
+      {
+        sourceText: 'Hello! Audio system is working perfectly.',
+        sourceLang: 'en',
+        translationText: 'أهلاً بك! نظام الصوت والشرح التفاعلي يعمل بنجاح تام.',
+      },
+    ], 'bilingual');
   }
 
   /**
